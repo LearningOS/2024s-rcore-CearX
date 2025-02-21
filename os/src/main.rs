@@ -14,7 +14,7 @@
 //!
 //! We then call [`task::run_first_task()`] and for the first time go to
 //! userspace.
-
+#![feature(diagnostic_namespace)]
 #![deny(missing_docs)]
 #![deny(warnings)]
 #![no_std]
