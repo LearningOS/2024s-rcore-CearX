@@ -55,7 +55,6 @@ pub fn sys_yield() -> isize {
 /// get time with second and microsecond
 pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
     trace!("kernel: sys_get_time");
-    // println!("hi");
     let us = get_time_us();
     unsafe {
         *ts = TimeVal {
@@ -70,10 +69,9 @@ pub fn sys_get_time(ts: *mut TimeVal, _tz: usize) -> isize {
 pub fn sys_task_info(ti: *mut TaskInfo) -> isize {
     trace!("kernel: sys_task_info");
     let task = get_current_task_info();
+    // println!("task status: {:?}, syscall times: {:?}, total running time: {}", task.status, task.syscall_times, task.time);
     unsafe {
-    // println!("{:#?}", *task);
-    println!("------------ {:#?}", (*task).syscall_times[169]);
-        *ti = *task;
+        *ti = task;
     }
 
     0

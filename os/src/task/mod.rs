@@ -18,6 +18,7 @@ use crate::config::MAX_APP_NUM;
 use crate::loader::{get_num_app, init_app_cx};
 use crate::sync::UPSafeCell;
 use crate::syscall::TaskInfo;
+use crate::timer:: get_time_ms;
 use lazy_static::*;
 use switch::__switch;
 pub use task::{TaskControlBlock, TaskStatus};
@@ -55,7 +56,8 @@ lazy_static! {
         let mut tasks = [TaskControlBlock {
             task_cx: TaskContext::zero_init(),
             task_status: TaskStatus::UnInit,
-            task_info: TaskInfo::new()
+            task_info: TaskInfo::new(),
+            first_time:0,
         }; MAX_APP_NUM];
         for (i, task) in tasks.iter_mut().enumerate() {
             task.task_cx = TaskContext::goto_restore(init_app_cx(i));
@@ -84,6 +86,9 @@ impl TaskManager {
         let task0 = &mut inner.tasks[0];
         task0.task_status = TaskStatus::Running;
         task0.task_info.status = TaskStatus::Running;
+        // //first_time
+        // task0.task_info.time = get_time() as usize;
+
         let next_task_cx_ptr = &task0.task_cx as *const TaskContext;
         drop(inner);
         let mut _unused = TaskContext::zero_init();
@@ -131,6 +136,11 @@ impl TaskManager {
             let current = inner.current_task;
             inner.tasks[next].task_status = TaskStatus::Running;
             inner.tasks[next].task_info.status = TaskStatus::Running;
+            //first_time
+            if inner.tasks[next].first_time == 0 {
+                inner.tasks[next].first_time = get_time_ms() as usize;
+            }
+
             inner.current_task = next;
             let current_task_cx_ptr = &mut inner.tasks[current].task_cx as *mut TaskContext;
             let next_task_cx_ptr = &inner.tasks[next].task_cx as *const TaskContext;
@@ -145,12 +155,44 @@ impl TaskManager {
         }
     }
 
-    fn get_current_task_info(&self) -> *mut TaskInfo {
-        let inner = self.inner.exclusive_access();
+    fn get_current_task_info(&self) -> TaskInfo {
+        let mut inner = self.inner.exclusive_access();
         let current = inner.current_task;
-        let mut task = inner.tasks[current].task_info;
+        let first_time = inner.tasks[current].first_time;
+        let info_time = get_time_ms() as usize;
+        println!("first_time{}", first_time);
+        println!("info_time{}", info_time);
+        inner.tasks[current].task_info.time = info_time - first_time;
+
+        // inner.tasks[current].task_info.time = info_time - inner.tasks[current].task_info.time;
+        let task = inner.tasks[current].task_info.clone();
+        println!("dddddddddddddd----------------") ;
+        println!("current: {}", current);
+        println!("task status: {:?}", task.status);
+        // println!("task.task_syscall_times[410] = {}", task.syscall_times[410]); 
+        // println!("task.yield_syscall_times[124] = {}", task.syscall_times[124]); 
+        // println!("task.gettime_syscall_times[169] = {}", task.syscall_times[169]); 
+        // println!("syscall times: {:?}", task.syscall_times);
+
+        // println!("current: {}\n current task info: {:?}\n", current, task);
         drop(inner);
-        &mut task as *mut TaskInfo
+        task
+    }
+
+    fn change_system_call_time(&self, id: usize) {
+        let mut inner = self.inner.exclusive_access();
+        let current = inner.current_task;
+        inner.tasks[current].task_info.syscall_times[id] += 1;
+        let task = inner.tasks[current].task_info.clone();
+        // println!("before_task.syscall_times[{}] = {}", id, task.syscall_times[id]); // 0
+        if id == 410 {
+            println!("bbbbbbbbbbbb-------------------") ;
+            println!("current: {}", current);
+            println!("task status: {:?}", task.status);
+            println!("task.syscall_times[{}] = {}", id, task.syscall_times[id]); 
+        }
+        // println!("task.syscall_times[{}] = {}", id, task.syscall_times[id]); // 1
+        drop(inner);
     }
 }
 
@@ -187,6 +229,10 @@ pub fn exit_current_and_run_next() {
     run_next_task();
 }
 /// get current task info
-pub fn get_current_task_info() -> *mut TaskInfo {
+pub fn get_current_task_info() -> TaskInfo {
     TASK_MANAGER.get_current_task_info()
+}
+/// change time
+pub fn change_system_call_time(id: usize) {
+    TASK_MANAGER.change_system_call_time(id);
 }

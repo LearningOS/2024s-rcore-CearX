@@ -13,6 +13,8 @@ pub struct TaskControlBlock {
     pub task_cx: TaskContext,
     /// the task info
     pub task_info: TaskInfo,
+    /// first time
+    pub first_time: usize,
 }
 
 /// The status of a task
